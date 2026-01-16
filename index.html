@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NPS Survey TEST</title>
+  <style>
+    body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"Noto Sans JP",sans-serif;
+           margin: 0; background: #f6f7f9; color: #111; }
+    .wrap { max-width: 520px; margin: 0 auto; padding: 18px; }
+    .card { background: #fff; border-radius: 14px; padding: 18px; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+    h1 { font-size: 18px; margin: 0 0 8px; }
+    .sub { font-size: 13px; color: #555; margin-bottom: 16px; line-height: 1.5; }
+    .scoreBox { display: flex; align-items: baseline; gap: 10px; margin: 12px 0 10px; }
+    .score { font-size: 42px; font-weight: 800; }
+    .label { font-size: 14px; color: #444; }
+    textarea { width: 100%; min-height: 120px; padding: 12px; border-radius: 10px; border: 1px solid #ddd;
+               font-size: 14px; resize: vertical; box-sizing: border-box; }
+    .row { display: flex; gap: 10px; margin-top: 12px; }
+    button { width: 100%; border: 0; border-radius: 10px; padding: 12px 14px; font-weight: 700; cursor: pointer; }
+    .primary { background: #06c755; color: #fff; }
+    .primary:disabled { opacity: .55; cursor: not-allowed; }
+    .ghost { background: #eef1f4; color: #111; }
+    .msg { margin-top: 12px; font-size: 13px; line-height: 1.6; }
+    .ok { color: #0a7a2f; }
+    .ng { color: #b00020; }
+    .muted { color: #666; font-size: 12px; margin-top: 10px; }
+    code { background: #f1f1f1; padding: 2px 6px; border-radius: 6px; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>授業後アンケート（NPS）</h1>
+      <div class="sub">
+        ありがとうございます。よろしければ、スコアの理由を一言だけ教えてください（任意）。
+      </div>
+
+      <div class="scoreBox">
+        <div class="score" id="scoreText">-</div>
+        <div class="label" id="scoreLabel">スコアを読み込み中…</div>
+      </div>
+
+      <textarea id="comment" placeholder="例：説明がわかりやすかった / 宿題の量がちょうど良い など（任意）"></textarea>
+
+      <div class="row">
+        <button class="primary" id="sendBtn">送信する</button>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <button class="ghost" id="resetBtn" type="button">入力をクリア</button>
+      </div>
+
+      <div class="msg" id="msg"></div>
+
+      <div class="muted">
+        テスト方法：<code>?score=0〜10</code> をURL末尾につけて開いてください。<br/>
+        例：<code>.../index.html?score=8</code>
+      </div>
+    </div>
+  </div>
+
+<script>
+
+  
+const GAS_ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbzr-aA_mnP_sHV4ablOWEiCAg5KXpKdWt3kFcXzYm9k6pM8t0-tLARcI5o-qEfYwb4y/exec";
+
+/**
+ * ====== LIFF導入後に使う予定のスイッチ ======
+ */
+const USE_LIFF = false;
+
+function getQueryParam(name) {
+  const url = new URL(window.location.href);
+  return url.searchParams.get(name);
+}
+
+function parseScore(raw) {
+  if (raw === null || raw === undefined || raw === "") return null;
+  const n = Number(raw);
+  if (!Number.isInteger(n)) return null;
+  if (n < 0 || n > 10) return null;
+  return n;
+}
+
+function nowISO() {
+  // GAS側でタイムスタンプ付与する方が安全だが、クライアントにも入れておく
+  return new Date().toISOString();
+}
+
+async function postJson(url, payload) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    // GAS WebアプリはCORS周りで困ることがあるので、必要なら mode を調整
+    // mode: "cors",
+    body: JSON.stringify(payload),
+  });
+  const text = await res.text();
+  return { ok: res.ok, status: res.status, text };
+}
+
+function setMsg(text, cls) {
+  const el = document.getElementById("msg");
+  el.className = "msg " + (cls || "");
+  el.textContent = text;
+}
+
+function setScoreUI(score) {
+  const scoreText = document.getElementById("scoreText");
+  const scoreLabel = document.getElementById("scoreLabel");
+  if (score === null) {
+    scoreText.textContent = "-";
+    scoreLabel.textContent = "URLに score がありません（例：?score=8）";
+    return;
+  }
+  scoreText.textContent = String(score);
+  scoreLabel.textContent = `スコア${score}の理由（任意）`;
+}
+
+(async function init() {
+  const rawScore = getQueryParam("score");
+  const score = parseScore(rawScore);
+  setScoreUI(score);
+
+  if (GAS_ENDPOINT_URL.includes("PASTE_YOUR_GAS_WEBAPP_URL_HERE")) {
+    setMsg("まずは HTML内の GAS_ENDPOINT_URL をあなたのGAS WebアプリURLに置き換えてください。", "ng");
+  } else {
+    setMsg("", "");
+  }
+
+  // 送信ボタン
+  const sendBtn = document.getElementById("sendBtn");
+  sendBtn.addEventListener("click", async () => {
+    // 入力チェック
+    if (score === null) {
+      setMsg("score が不正です。URL末尾に ?score=0〜10 を付けて開いてください。", "ng");
+      return;
+    }
+    if (!GAS_ENDPOINT_URL || GAS_ENDPOINT_URL.includes("PASTE_YOUR_GAS_WEBAPP_URL_HERE")) {
+      setMsg("GAS_ENDPOINT_URL が未設定です。HTML内のURLを設定してください。", "ng");
+      return;
+    }
+
+    // 連打防止
+    sendBtn.disabled = true;
+    setMsg("送信中…", "");
+
+    // userId は LIFF が無いのでダミーにする（後で置換）
+    const userId = "TEST_USER";
+
+    const payload = {
+      timestamp: nowISO(),
+      userId,
+      customerName: "テスト太郎",   // いったん固定（後で削除/差し替えOK）
+      classId: "test_class_001",     // いったん固定（後で差し替えOK）
+      score,
+      comment: (document.getElementById("comment").value || "").trim(),
+      source: USE_LIFF ? "LIFF" : "WEB_TEST"
+    };
+
+    try {
+      const result = await postJson(GAS_ENDPOINT_URL, payload);
+
+      // GAS側の返しがJSONでなくても表示できるように text で扱う
+      if (result.ok) {
+        setMsg("送信しました。ご協力ありがとうございました！", "ok");
+        // LIFF導入後はここで liff.closeWindow() を呼ぶ想定
+      } else {
+        setMsg(`送信に失敗しました（HTTP ${result.status}）。\nGASの公開設定（誰でもアクセス可）とURLを確認してください。\n応答: ${result.text}`, "ng");
+      }
+    } catch (e) {
+      setMsg("送信に失敗しました（通信エラー）。GASのURLやネットワークを確認してください。\n" + String(e), "ng");
+    } finally {
+      sendBtn.disabled = false;
+    }
+  });
+
+  // クリアボタン
+  document.getElementById("resetBtn").addEventListener("click", () => {
+    document.getElementById("comment").value = "";
+    setMsg("", "");
+  });
+})();
+</script>
+</body>
+</html>
