@@ -21,11 +21,9 @@
     .primary { background: #06c755; color: #fff; }
     .primary:disabled { opacity: .55; cursor: not-allowed; }
     .ghost { background: #eef1f4; color: #111; }
-    .msg { margin-top: 12px; font-size: 13px; line-height: 1.6; }
+    .msg { margin-top: 12px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
     .ok { color: #0a7a2f; }
     .ng { color: #b00020; }
-    .muted { color: #666; font-size: 12px; margin-top: 10px; }
-    code { background: #f1f1f1; padding: 2px 6px; border-radius: 6px; }
   </style>
 </head>
 
@@ -45,7 +43,8 @@
       <textarea id="comment" placeholder="例：説明がわかりやすかった / 宿題の量がちょうど良い など（任意）"></textarea>
 
       <div class="row">
-        <button class="primary" id="sendBtn">送信する</button>
+        <!-- ★重要：type="button" で勝手なsubmitを防ぐ -->
+        <button class="primary" id="sendBtn" type="button">送信する</button>
       </div>
 
       <div class="row" style="margin-top:10px;">
@@ -54,163 +53,179 @@
 
       <div class="msg" id="msg"></div>
 
+      <!-- ★重要：レスポンスを本体ページに出さないための hidden iframe -->
+      <iframe id="hiddenPostFrame" name="hiddenPostFrame" style="display:none;"></iframe>
+
+      <!-- ★重要：GASへはフォームPOST（プリフライト/CORS回避） -->
+      <form id="hiddenPostForm" method="POST" target="hiddenPostFrame" style="display:none;">
+        <input type="hidden" name="userId" />
+        <input type="hidden" name="customerName" />
+        <input type="hidden" name="classId" />
+        <input type="hidden" name="score" />
+        <input type="hidden" name="comment" />
+        <input type="hidden" name="source" />
+        <input type="hidden" name="timestamp" />
+      </form>
     </div>
   </div>
 
 <script>
-const GAS_ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbzr-aA_mnP_sHV4ablOWEiCAg5KXpKdWt3kFcXzYm9k6pM8t0-tLARcI5o-qEfYwb4y/exec";
+  // ★あなたのGAS WebアプリURL（/exec）
+  const GAS_ENDPOINT_URL =
+    "https://script.google.com/macros/s/AKfycbzr-aA_mnP_sHV4ablOWEiCAg5KXpKdWt3kFcXzYm9k6pM8t0-tLARcI5o-qEfYwb4y/exec";
 
-function setMsg(text, cls) {
-  const el = document.getElementById("msg");
-  el.className = "msg " + (cls || "");
-  el.textContent = text;
-}
+  // LIFF導入後に切り替え
+  const USE_LIFF = false;
 
-function getQueryParam(name) {
-  const url = new URL(window.location.href);
-  return url.searchParams.get(name);
-}
-function parseScore(raw) {
-  if (raw === null || raw === undefined || raw === "") return null;
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < 0 || n > 10) return null;
-  return n;
-}
-function setScoreUI(score) {
-  const scoreText = document.getElementById("scoreText");
-  const scoreLabel = document.getElementById("scoreLabel");
-  if (score === null) {
-    scoreText.textContent = "-";
-    scoreLabel.textContent = "スコア不明";
-    return;
+  function getQueryParam(name) {
+    const url = new URL(window.location.href);
+    return url.searchParams.get(name);
   }
-  scoreText.textContent = String(score);
-  scoreLabel.textContent = `スコア${score}の理由（任意）`;
-}
 
-/**
- * ★ページ遷移しないフォーム送信（iframeターゲット）
- * - CORS/プリフライト回避
- * - 画面はそのまま
- * - GASの返却JSONを読み取って成功/失敗表示する
- */
-function postByHiddenIframe(url, payload) {
-  return new Promise((resolve, reject) => {
-    // 使い回し用 iframe（無ければ作る）
-    let iframe = document.getElementById("hiddenPostFrame");
-    if (!iframe) {
-      iframe = document.createElement("iframe");
-      iframe.id = "hiddenPostFrame";
-      iframe.name = "hiddenPostFrame";
-      iframe.style.display = "none";
-      document.body.appendChild(iframe);
-    }
+  function parseScore(raw) {
+    if (raw === null || raw === undefined || raw === "") return null;
+    const n = Number(raw);
+    if (!Number.isInteger(n)) return null;
+    if (n < 0 || n > 10) return null;
+    return n;
+  }
 
-    // form（無ければ作る）
-    let form = document.getElementById("hiddenPostForm");
-    if (!form) {
-      form = document.createElement("form");
-      form.id = "hiddenPostForm";
-      form.method = "POST";
-      form.style.display = "none";
-      document.body.appendChild(form);
-    }
+  function nowISO() {
+    return new Date().toISOString();
+  }
 
-    form.action = url;
-    form.target = "hiddenPostFrame";
-    form.innerHTML = "";
+  function setMsg(text, cls) {
+    const el = document.getElementById("msg");
+    el.className = "msg " + (cls || "");
+    el.textContent = text;
+  }
 
-    for (const [k, v] of Object.entries(payload)) {
-      const input = document.createElement("input");
-      input.type = "hidden";
-      input.name = k;
-      input.value = (v ?? "").toString();
-      form.appendChild(input);
-    }
-
-    // iframe に読み込みが入ったら結果を読む
-    const onLoad = () => {
-      try {
-        // GASから返るのは {"ok":true} のJSON文字列
-        const doc = iframe.contentDocument || iframe.contentWindow.document;
-        const text = (doc.body && doc.body.innerText) ? doc.body.innerText.trim() : "";
-        // 空っぽの時もあるのでガード
-        if (!text) {
-          resolve({ ok: true, raw: "" }); // 返事が空でも送れてることがある
-          return;
-        }
-        let json = null;
-        try { json = JSON.parse(text); } catch (_) {}
-        if (json && json.ok === true) resolve({ ok: true, raw: text });
-        else resolve({ ok: false, raw: text });
-      } catch (e) {
-        // まれに読めない場合でも「送信自体は成功」しているケースがあるため、成功扱いに寄せる
-        resolve({ ok: true, raw: "" });
-      } finally {
-        iframe.removeEventListener("load", onLoad);
-      }
-    };
-
-    iframe.addEventListener("load", onLoad);
-
-    try {
-      form.submit();
-    } catch (e) {
-      iframe.removeEventListener("load", onLoad);
-      reject(e);
-    }
-  });
-}
-
-(async function init() {
-  const score = parseScore(getQueryParam("score"));
-  setScoreUI(score);
-
-  const sendBtn = document.getElementById("sendBtn");
-  sendBtn.addEventListener("click", async () => {
+  function setScoreUI(score) {
+    const scoreText = document.getElementById("scoreText");
+    const scoreLabel = document.getElementById("scoreLabel");
     if (score === null) {
-      setMsg("score が入力されていません。", "ng");
+      scoreText.textContent = "-";
+      scoreLabel.textContent = "スコア不明";
       return;
     }
+    scoreText.textContent = String(score);
+    scoreLabel.textContent = `スコア${score}の理由（任意）`;
+  }
 
-    sendBtn.disabled = true;
-    setMsg("送信中…", "");
+  /**
+   * CORS/プリフライト回避：
+   * fetchではなく、hidden iframe へのフォームPOSTで送る。
+   */
+  function postByHiddenIframe(payload) {
+    return new Promise((resolve, reject) => {
+      const form = document.getElementById("hiddenPostForm");
+      const iframe = document.getElementById("hiddenPostFrame");
 
-    const payload = {
-      userId: "TEST_USER",
-      customerName: "テスト太郎",
-      classId: "test_class_001",
-      score: String(score),
-      comment: (document.getElementById("comment").value || "").trim(),
-      source: "WEB_TEST"
-    };
+      // 送信先
+      form.action = GAS_ENDPOINT_URL;
 
-    try {
-      const result = await postByHiddenIframe(GAS_ENDPOINT_URL, payload);
-      if (result.ok) {
-        setMsg("ご協力ありがとうございました！", "ok");
-        // 送信後に入力欄をロックしたいなら↓
-        // document.getElementById("comment").disabled = true;
-      } else {
-        setMsg("送信に失敗しました。\n応答: " + result.raw, "ng");
+      // hidden inputs に値をセット
+      form.userId.value = payload.userId ?? "";
+      form.customerName.value = payload.customerName ?? "";
+      form.classId.value = payload.classId ?? "";
+      form.score.value = String(payload.score ?? "");
+      form.comment.value = payload.comment ?? "";
+      form.source.value = payload.source ?? "WEB_TEST";
+      form.timestamp.value = payload.timestamp ?? "";
+
+      let done = false;
+
+      const timeoutId = setTimeout(() => {
+        if (done) return;
+        done = true;
+        iframe.removeEventListener("load", onLoad);
+        // 読み取りできない場合もあるので「送信は通ってる可能性あり」扱いで返す
+        resolve({ ok: true, raw: "" });
+      }, 8000);
+
+      const onLoad = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timeoutId);
+        iframe.removeEventListener("load", onLoad);
+
+        try {
+          const doc = iframe.contentDocument || iframe.contentWindow.document;
+          const text = (doc.body && doc.body.innerText) ? doc.body.innerText.trim() : "";
+          let json = null;
+          try { json = JSON.parse(text); } catch (_) {}
+          if (json && json.ok === true) resolve({ ok: true, raw: text });
+          else resolve({ ok: false, raw: text });
+        } catch (e) {
+          // iframe内の参照ができないケースでも、送信自体は成功している場合がある
+          resolve({ ok: true, raw: "" });
+        }
+      };
+
+      iframe.addEventListener("load", onLoad);
+
+      try {
+        form.submit(); // ★本体ページは遷移しない
+      } catch (e) {
+        clearTimeout(timeoutId);
+        iframe.removeEventListener("load", onLoad);
+        reject(e);
       }
-    } catch (e) {
-      setMsg("送信に失敗しました。\n" + String(e), "ng");
-    } finally {
-      sendBtn.disabled = false;
-    }
-  });
+    });
+  }
 
-  document.getElementById("resetBtn").addEventListener("click", () => {
-    document.getElementById("comment").value = "";
-    setMsg("", "");
-  });
-})();
+  (function init() {
+    const rawScore = getQueryParam("score");
+    const score = parseScore(rawScore);
+    setScoreUI(score);
+
+    const sendBtn = document.getElementById("sendBtn");
+    sendBtn.addEventListener("click", async () => {
+      if (score === null) {
+        setMsg("score が入力されていません。URLに ?score=0..10 を付けて開いてください。", "ng");
+        return;
+      }
+      if (!GAS_ENDPOINT_URL || GAS_ENDPOINT_URL.includes("PASTE")) {
+        setMsg("GAS_ENDPOINT_URL が未設定です。", "ng");
+        return;
+      }
+
+      sendBtn.disabled = true;
+      setMsg("送信中…", "");
+
+      // LIFF未導入なのでダミー（後で LIFFの userId に差し替え）
+      const userId = "TEST_USER";
+
+      const payload = {
+        timestamp: nowISO(),
+        userId,
+        customerName: "テスト太郎",
+        classId: "test_class_001",
+        score,
+        comment: (document.getElementById("comment").value || "").trim(),
+        source: USE_LIFF ? "LIFF" : "WEB_TEST"
+      };
+
+      try {
+        const result = await postByHiddenIframe(payload);
+        if (result.ok) {
+          setMsg("ご協力ありがとうございました！", "ok");
+        } else {
+          setMsg("送信に失敗しました。\n応答: " + (result.raw || "(no body)"), "ng");
+        }
+      } catch (e) {
+        setMsg("送信に失敗しました。\n" + String(e), "ng");
+      } finally {
+        sendBtn.disabled = false;
+      }
+    });
+
+    document.getElementById("resetBtn").addEventListener("click", () => {
+      document.getElementById("comment").value = "";
+      setMsg("", "");
+    });
+  })();
 </script>
-
-
-
-  
-
 </body>
 </html>
+
