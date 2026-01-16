@@ -108,7 +108,7 @@ function setScoreUI(score) {
   const scoreLabel = document.getElementById("scoreLabel");
   if (score === null) {
     scoreText.textContent = "-";
-    scoreLabel.textContent = "URLに score がありません（例：?score=8）";
+    scoreLabel.textContent = "スコア不明";
     return;
   }
   scoreText.textContent = String(score);
@@ -120,18 +120,13 @@ function setScoreUI(score) {
   const score = parseScore(rawScore);
   setScoreUI(score);
 
-  if (GAS_ENDPOINT_URL.includes("PASTE_YOUR_GAS_WEBAPP_URL_HERE")) {
-    setMsg("まずは HTML内の GAS_ENDPOINT_URL をあなたのGAS WebアプリURLに置き換えてください。", "ng");
-  } else {
-    setMsg("", "");
-  }
 
   // 送信ボタン
   const sendBtn = document.getElementById("sendBtn");
   sendBtn.addEventListener("click", async () => {
     // 入力チェック
     if (score === null) {
-      setMsg("score が不正です。URL末尾に ?score=0〜10 を付けて開いてください。", "ng");
+      setMsg("score が入力されていません。", "ng");
       return;
     }
     if (!GAS_ENDPOINT_URL || GAS_ENDPOINT_URL.includes("PASTE_YOUR_GAS_WEBAPP_URL_HERE")) {
@@ -161,13 +156,13 @@ function setScoreUI(score) {
 
       // GAS側の返しがJSONでなくても表示できるように text で扱う
       if (result.ok) {
-        setMsg("送信しました。ご協力ありがとうございました！", "ok");
+        setMsg("ご協力ありがとうございました！", "ok");
         // LIFF導入後はここで liff.closeWindow() を呼ぶ想定
       } else {
-        setMsg(`送信に失敗しました（HTTP ${result.status}）。\nGASの公開設定（誰でもアクセス可）とURLを確認してください。\n応答: ${result.text}`, "ng");
+        setMsg(`送信に失敗しました（HTTP ${result.status}）。\n応答: ${result.text}`, "ng");
       }
     } catch (e) {
-      setMsg("送信に失敗しました（通信エラー）。GASのURLやネットワークを確認してください。\n" + String(e), "ng");
+      setMsg("送信に失敗しました（。\n" + String(e), "ng");
     } finally {
       sendBtn.disabled = false;
     }
