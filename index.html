@@ -86,14 +86,15 @@ function nowISO() {
 }
 
 async function postJson(url, payload) {
-  const res = await fetch(url, {
+  await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" }, 
+    mode: "no-cors",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify(payload),
   });
-  const text = await res.text();
-  return { ok: res.ok, status: res.status, text };
+  return { ok: true, status: 0, text: "" };
 }
+
 
 
 function setScoreUI(score) {
