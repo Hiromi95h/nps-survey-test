@@ -5,105 +5,81 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>NPS Survey TEST</title>
   <style>
-    body {
-      font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"Noto Sans JP",sans-serif;
-      margin: 0; background: #f6f7f9; color: #111;
-    }
+    body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"Noto Sans JP",sans-serif;
+           margin: 0; background: #f6f7f9; color: #111; }
     .wrap { max-width: 520px; margin: 0 auto; padding: 18px; }
     .card { background: #fff; border-radius: 14px; padding: 18px; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
-
     h1 { font-size: 18px; margin: 0 0 8px; }
     .sub { font-size: 13px; color: #555; margin-bottom: 16px; line-height: 1.5; }
-
     .scoreBox { display: flex; align-items: baseline; gap: 10px; margin: 12px 0 10px; }
     .score { font-size: 42px; font-weight: 800; }
     .label { font-size: 14px; color: #444; }
-
-    textarea {
-      width: 100%; min-height: 120px; padding: 12px; border-radius: 10px; border: 1px solid #ddd;
-      font-size: 14px; resize: vertical; box-sizing: border-box;
-    }
-
+    textarea { width: 100%; min-height: 120px; padding: 12px; border-radius: 10px; border: 1px solid #ddd;
+               font-size: 14px; resize: vertical; box-sizing: border-box; }
     .row { display: flex; gap: 10px; margin-top: 12px; }
     button { width: 100%; border: 0; border-radius: 10px; padding: 12px 14px; font-weight: 700; cursor: pointer; }
     .primary { background: #06c755; color: #fff; }
     .primary:disabled { opacity: .55; cursor: not-allowed; }
     .ghost { background: #eef1f4; color: #111; }
-
-    .msg { margin-top: 12px; font-size: 13px; line-height: 1.6; }
+    .msg { margin-top: 12px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
     .ok { color: #0a7a2f; }
     .ng { color: #b00020; }
-
-    /* 完了画面 */
-    .doneWrap {
-      display: none;
-      padding: 26px 8px;
-      text-align: center;
-    }
-    .doneTitle {
-      font-size: 18px;
-      font-weight: 800;
-      margin: 0 0 10px;
-    }
-    .doneText {
-      font-size: 13px;
-      color: #555;
-      line-height: 1.6;
-      margin: 0;
-    }
-    .doneIcon {
-      font-size: 42px;
-      margin: 0 0 10px;
-    }
   </style>
 </head>
 
 <body>
   <div class="wrap">
     <div class="card">
-
-      <!-- 入力画面 -->
-      <div id="formView">
-        <h1>アンケート</h1>
-        <div class="sub">
-          ありがとうございます。よろしければ、スコアの理由を一言だけ教えてください（任意）。
-        </div>
-
-        <div class="scoreBox">
-          <div class="score" id="scoreText">-</div>
-          <div class="label" id="scoreLabel">スコアを読み込み中…</div>
-        </div>
-
-        <textarea id="comment" placeholder="例：説明がわかりやすかった / 宿題の量がちょうど良い など（任意）"></textarea>
-
-        <div class="row">
-          <button class="primary" id="sendBtn">送信する</button>
-        </div>
-
-        <div class="row" style="margin-top:10px;">
-          <button class="ghost" id="resetBtn" type="button">入力をクリア</button>
-        </div>
-
-        <div class="msg" id="msg"></div>
+      <h1>アンケート</h1>
+      <div class="sub">
+        ありがとうございます。よろしければ、スコアの理由を一言だけ教えてください（任意）。
       </div>
 
-      <!-- 完了画面 -->
-      <div id="doneView" class="doneWrap">
-        <div class="doneIcon">✅</div>
-        <h2 class="doneTitle">ご協力ありがとうございました！</h2>
-        <p class="doneText">回答を受け付けました。</p>
+      <div class="scoreBox">
+        <div class="score" id="scoreText">-</div>
+        <div class="label" id="scoreLabel">スコアを読み込み中…</div>
       </div>
 
+      <textarea id="comment" placeholder="例：説明がわかりやすかった / 宿題の量がちょうど良い など（任意）"></textarea>
+
+      <!-- ★ 送信ボタンはフォームの外に置く & type="button" 固定 -->
+      <div class="row">
+        <button class="primary" id="sendBtn" type="button">送信する</button>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <button class="ghost" id="resetBtn" type="button">入力をクリア</button>
+      </div>
+
+      <div class="msg" id="msg"></div>
+
+      <!-- ★ hidden iframe：ここにだけGASの応答を受ける -->
+      <iframe id="hiddenPostFrame" name="hiddenPostFrame" style="display:none;"></iframe>
+
+      <!-- ★ hidden form：必ず target を iframe の name と一致させる -->
+      <form id="hiddenPostForm" method="POST" target="hiddenPostFrame" style="display:none;">
+        <input type="hidden" name="userId" />
+        <input type="hidden" name="customerName" />
+        <input type="hidden" name="classId" />
+        <input type="hidden" name="score" />
+        <input type="hidden" name="comment" />
+        <input type="hidden" name="source" />
+        <input type="hidden" name="timestamp" />
+      </form>
     </div>
   </div>
 
 <script>
-
-  const GAS_ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbzr-aA_mnP_sHV4ablOWEiCAg5KXpKdWt3kFcXzYm9k6pM8t0-tLARcI5o-qEfYwb4y/exec";
+  const GAS_ENDPOINT_URL =
+    "https://script.google.com/macros/s/AKfycbzr-aA_mnP_sHV4ablOWEiCAg5KXpKdWt3kFcXzYm9k6pM8t0-tLARcI5o-qEfYwb4y/exec";
 
   const USE_LIFF = false;
 
-
+  function setMsg(text, cls) {
+    const el = document.getElementById("msg");
+    el.className = "msg " + (cls || "");
+    el.textContent = text;
+  }
 
   function getQueryParam(name) {
     const url = new URL(window.location.href);
@@ -118,25 +94,7 @@
     return n;
   }
 
-  function nowISO() {
-    return new Date().toISOString();
-  }
-
-  async function postJson(url, payload) {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(payload),
-    });
-    const text = await res.text();
-    return { ok: res.ok, status: res.status, text };
-  }
-
-  function setMsg(text, cls) {
-    const el = document.getElementById("msg");
-    el.className = "msg " + (cls || "");
-    el.textContent = text;
-  }
+  function nowISO() { return new Date().toISOString(); }
 
   function setScoreUI(score) {
     const scoreText = document.getElementById("scoreText");
@@ -150,36 +108,80 @@
     scoreLabel.textContent = `スコア${score}の理由（任意）`;
   }
 
-  function showDoneView() {
-    document.getElementById("formView").style.display = "none";
-    document.getElementById("doneView").style.display = "block";
+  function postByHiddenIframe(payload) {
+    return new Promise((resolve, reject) => {
+      const form = document.getElementById("hiddenPostForm");
+      const iframe = document.getElementById("hiddenPostFrame");
+
+      // 送信先
+      form.action = GAS_ENDPOINT_URL;
+
+      // 値セット
+      form.userId.value = payload.userId ?? "";
+      form.customerName.value = payload.customerName ?? "";
+      form.classId.value = payload.classId ?? "";
+      form.score.value = String(payload.score ?? "");
+      form.comment.value = payload.comment ?? "";
+      form.source.value = payload.source ?? "WEB_TEST";
+      form.timestamp.value = payload.timestamp ?? "";
+
+      let done = false;
+      const timeoutId = setTimeout(() => {
+        if (done) return;
+        done = true;
+        iframe.removeEventListener("load", onLoad);
+        // 応答読めないケースでも「送信自体は通った可能性」を残す
+        resolve({ ok: true, raw: "" });
+      }, 8000);
+
+      const onLoad = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timeoutId);
+        iframe.removeEventListener("load", onLoad);
+
+        try {
+          const doc = iframe.contentDocument || iframe.contentWindow.document;
+          const text = (doc.body && doc.body.innerText) ? doc.body.innerText.trim() : "";
+          let json = null;
+          try { json = JSON.parse(text); } catch (_) {}
+          if (json && json.ok === true) resolve({ ok: true, raw: text });
+          else resolve({ ok: false, raw: text });
+        } catch (e) {
+          // 参照できなくても送信は成功している場合がある
+          resolve({ ok: true, raw: "" });
+        }
+      };
+
+      iframe.addEventListener("load", onLoad);
+
+      try {
+        form.submit(); // ★ここで本体タブは絶対遷移しない（targetが合っていれば）
+      } catch (e) {
+        clearTimeout(timeoutId);
+        iframe.removeEventListener("load", onLoad);
+        reject(e);
+      }
+    });
   }
 
-  (async function init() {
-    const rawScore = getQueryParam("score");
-    const score = parseScore(rawScore);
+  (function init() {
+    const score = parseScore(getQueryParam("score"));
     setScoreUI(score);
 
     const sendBtn = document.getElementById("sendBtn");
-
     sendBtn.addEventListener("click", async () => {
       if (score === null) {
-        setMsg("score が入力されていません。", "ng");
-        return;
-      }
-      if (!GAS_ENDPOINT_URL || GAS_ENDPOINT_URL.includes("PASTE_YOUR_GAS_WEBAPP_URL_HERE")) {
-        setMsg("GAS_ENDPOINT_URL が未設定です。", "ng");
+        setMsg("score が入力されていません。URLに ?score=0..10 を付けて開いてください。", "ng");
         return;
       }
 
       sendBtn.disabled = true;
       setMsg("送信中…", "");
 
-      const userId = "TEST_USER";
-
       const payload = {
         timestamp: nowISO(),
-        userId,
+        userId: "TEST_USER",
         customerName: "テスト太郎",
         classId: "test_class_001",
         score,
@@ -188,22 +190,15 @@
       };
 
       try {
-        const result = await postJson(GAS_ENDPOINT_URL, payload);
-
+        const result = await postByHiddenIframe(payload);
         if (result.ok) {
-          showDoneView();
-
-          // LIFF運用時：数秒後に閉じる
-          // if (USE_LIFF && window.liff) {
-          //   setTimeout(() => liff.closeWindow(), 1500);
-          // }
-
+          setMsg("ご協力ありがとうございました！", "ok");
         } else {
-          setMsg(`送信に失敗しました (HTTP ${result.status})。\n応答: ${result.text}`, "ng");
-          sendBtn.disabled = false;
+          setMsg("送信に失敗しました。\n応答: " + (result.raw || "(no body)"), "ng");
         }
       } catch (e) {
         setMsg("送信に失敗しました。\n" + String(e), "ng");
+      } finally {
         sendBtn.disabled = false;
       }
     });
@@ -216,4 +211,3 @@
 </script>
 </body>
 </html>
-
