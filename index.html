@@ -88,20 +88,13 @@ function nowISO() {
 async function postJson(url, payload) {
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    // GAS WebアプリはCORS周りで困ることがあるので、必要なら mode を調整
-    // mode: "cors",
+    headers: { "Content-Type": "text/plain;charset=utf-8" }, 
     body: JSON.stringify(payload),
   });
   const text = await res.text();
   return { ok: res.ok, status: res.status, text };
 }
 
-function setMsg(text, cls) {
-  const el = document.getElementById("msg");
-  el.className = "msg " + (cls || "");
-  el.textContent = text;
-}
 
 function setScoreUI(score) {
   const scoreText = document.getElementById("scoreText");
