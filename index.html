@@ -57,15 +57,8 @@
     </div>
   </div>
 
-<script>
-
-  
+  <script>
 const GAS_ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbzr-aA_mnP_sHV4ablOWEiCAg5KXpKdWt3kFcXzYm9k6pM8t0-tLARcI5o-qEfYwb4y/exec";
-
-/**
- * ====== LIFF導入後に使う予定のスイッチ ======
- */
-const USE_LIFF = false;
 
 function getQueryParam(name) {
   const url = new URL(window.location.href);
@@ -80,22 +73,11 @@ function parseScore(raw) {
   return n;
 }
 
-function nowISO() {
-  // GAS側でタイムスタンプ付与する方が安全だが、クライアントにも入れておく
-  return new Date().toISOString();
+function setMsg(text, cls) {
+  const el = document.getElementById("msg");
+  el.className = "msg " + (cls || "");
+  el.textContent = text;
 }
-
-async function postJson(url, payload) {
-  await fetch(url, {
-    method: "POST",
-    mode: "no-cors",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(payload),
-  });
-  return { ok: true, status: 0, text: "" };
-}
-
-
 
 function setScoreUI(score) {
   const scoreText = document.getElementById("scoreText");
@@ -109,65 +91,65 @@ function setScoreUI(score) {
   scoreLabel.textContent = `スコア${score}の理由（任意）`;
 }
 
+function postByForm(url, payload) {
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = url;
+  form.style.display = "none";
+
+  // GASは content-type: application/x-www-form-urlencoded の普通のPOSTとして受けられる
+  for (const [k, v] of Object.entries(payload)) {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = k;
+    input.value = (v ?? "").toString();
+    form.appendChild(input);
+  }
+
+  document.body.appendChild(form);
+  form.submit();
+}
+
 (async function init() {
   const rawScore = getQueryParam("score");
   const score = parseScore(rawScore);
   setScoreUI(score);
 
-
-  // 送信ボタン
   const sendBtn = document.getElementById("sendBtn");
-  sendBtn.addEventListener("click", async () => {
-    // 入力チェック
+  sendBtn.addEventListener("click", () => {
     if (score === null) {
       setMsg("score が入力されていません。", "ng");
       return;
     }
-    if (!GAS_ENDPOINT_URL || GAS_ENDPOINT_URL.includes("PASTE_YOUR_GAS_WEBAPP_URL_HERE")) {
+    if (!GAS_ENDPOINT_URL) {
       setMsg("GAS_ENDPOINT_URL が未設定です。", "ng");
       return;
     }
 
-    // 連打防止
     sendBtn.disabled = true;
-    setMsg("送信中…", "");
-
-    // userId は LIFF が無いのでダミーにする（後で置換）
-    const userId = "TEST_USER";
+    setMsg("送信中…（数秒後に反映されます）", "");
 
     const payload = {
-      timestamp: nowISO(),
-      userId,
-      customerName: "テスト太郎",   // いったん固定（後で削除/差し替えOK）
-      classId: "test_class_001",     // いったん固定（後で差し替えOK）
-      score,
+      userId: "TEST_USER",
+      customerName: "テスト太郎",
+      classId: "test_class_001",
+      score: String(score),
       comment: (document.getElementById("comment").value || "").trim(),
-      source: USE_LIFF ? "LIFF" : "WEB_TEST"
+      source: "WEB_TEST"
     };
 
-    try {
-      const result = await postJson(GAS_ENDPOINT_URL, payload);
-
-      // GAS側の返しがJSONでなくても表示できるように text で扱う
-      if (result.ok) {
-        setMsg("ご協力ありがとうございました！", "ok");
-        // LIFF導入後はここで liff.closeWindow() を呼ぶ想定
-      } else {
-        setMsg(`送信に失敗しました(HTTP ${result.status}）。\n応答: ${result.text}`, "ng");
-      }
-    } catch (e) {
-      setMsg("送信に失敗しました。\n" + String(e), "ng");
-    } finally {
-      sendBtn.disabled = false;
-    }
+    postByForm(GAS_ENDPOINT_URL, payload);
   });
 
-  // クリアボタン
   document.getElementById("resetBtn").addEventListener("click", () => {
     document.getElementById("comment").value = "";
     setMsg("", "");
   });
 })();
 </script>
+
+
+  
+
 </body>
 </html>
