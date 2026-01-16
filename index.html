@@ -159,10 +159,10 @@ function setScoreUI(score) {
         setMsg("ご協力ありがとうございました！", "ok");
         // LIFF導入後はここで liff.closeWindow() を呼ぶ想定
       } else {
-        setMsg(`送信に失敗しました（HTTP ${result.status}）。\n応答: ${result.text}`, "ng");
+        setMsg(`送信に失敗しました(HTTP ${result.status}）。\n応答: ${result.text}`, "ng");
       }
     } catch (e) {
-      setMsg("送信に失敗しました（。\n" + String(e), "ng");
+      setMsg("送信に失敗しました。\n" + String(e), "ng");
     } finally {
       sendBtn.disabled = false;
     }
