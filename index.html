@@ -166,10 +166,20 @@
     });
   }
 
+  let lineUserId = null;
+
   async function init() {
     if (USE_LIFF && window.liff) {
       try {
         await liff.init({ liffId: "2008913027-v02rfm0M" });
+
+        if (liff.isLoggedIn()) {
+          const profile = await liff.getProfile();
+          lineUserId = profile.userId; 
+        } else {
+          liff.login();
+          return;
+        }
       } catch (e) {
         console.warn("LIFF init failed:", e);
       }
@@ -192,7 +202,7 @@
 
       const payload = {
         timestamp: nowISO(),
-        userId: "TEST_USER",
+        userId: lineUserId || " ", 
         customerName: "テスト太郎",
         classId,
         score,
@@ -210,6 +220,7 @@
       setMsg("");
     };
   }
+
 
   init();
 </script>
