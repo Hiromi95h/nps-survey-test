@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>NPS Survey TEST</title>
 
-  <!-- LIFF SDK（Web直アクセスでも害なし） -->
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
   <style>
@@ -24,7 +23,7 @@
     .label { font-size: 14px; color: #444; }
     textarea {
       width: 100%;
-      min-height: 120px;
+      min-height: 90px;
       padding: 12px;
       border-radius: 10px;
       border: 1px solid #ddd;
@@ -103,11 +102,9 @@
     el.textContent = text;
   }
 
-  /* ★ 通常クエリ & liff.state 両対応 */
   function getQueryParam(name) {
     const url = new URL(window.location.href);
 
-    // 通常 ?score=7
     const direct = url.searchParams.get(name);
     if (direct !== null) return direct;
 
@@ -170,7 +167,6 @@
   }
 
   async function init() {
-    // LIFF初期化（LINE内なら必須）
     if (USE_LIFF && window.liff) {
       try {
         await liff.init({ liffId: "2008913027-v02rfm0M" });
