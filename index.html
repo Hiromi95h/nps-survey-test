@@ -4,9 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>NPS Survey TEST</title>
+
+  <!-- LIFF SDK（Web直アクセスでも害なし） -->
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
   <style>
-    body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"Noto Sans JP",sans-serif;
-           margin: 0; background: #f6f7f9; color: #111; }
+    body {
+      font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"Noto Sans JP",sans-serif;
+      margin: 0;
+      background: #f6f7f9;
+      color: #111;
+    }
     .wrap { max-width: 520px; margin: 0 auto; padding: 18px; }
     .card { background: #fff; border-radius: 14px; padding: 18px; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
     h1 { font-size: 18px; margin: 0 0 8px; }
@@ -14,10 +22,25 @@
     .scoreBox { display: flex; align-items: baseline; gap: 10px; margin: 12px 0 10px; }
     .score { font-size: 42px; font-weight: 800; }
     .label { font-size: 14px; color: #444; }
-    textarea { width: 100%; min-height: 120px; padding: 12px; border-radius: 10px; border: 1px solid #ddd;
-               font-size: 14px; resize: vertical; box-sizing: border-box; }
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid #ddd;
+      font-size: 14px;
+      resize: vertical;
+      box-sizing: border-box;
+    }
     .row { display: flex; gap: 10px; margin-top: 12px; }
-    button { width: 100%; border: 0; border-radius: 10px; padding: 12px 14px; font-weight: 700; cursor: pointer; }
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
     .primary { background: #06c755; color: #fff; }
     .primary:disabled { opacity: .55; cursor: not-allowed; }
     .ghost { background: #eef1f4; color: #111; }
@@ -42,7 +65,6 @@
 
       <textarea id="comment" placeholder="例：説明がわかりやすかった / 宿題の量がちょうど良い など（任意）"></textarea>
 
-      <!-- ★ 送信ボタンはフォームの外に置く & type="button" 固定 -->
       <div class="row">
         <button class="primary" id="sendBtn" type="button">送信する</button>
       </div>
@@ -53,10 +75,10 @@
 
       <div class="msg" id="msg"></div>
 
-      <!-- ★ hidden iframe：ここにだけGASの応答を受ける -->
+      <!-- hidden iframe -->
       <iframe id="hiddenPostFrame" name="hiddenPostFrame" style="display:none;"></iframe>
 
-      <!-- ★ hidden form：必ず target を iframe の name と一致させる -->
+      <!-- hidden form -->
       <form id="hiddenPostForm" method="POST" target="hiddenPostFrame" style="display:none;">
         <input type="hidden" name="userId" />
         <input type="hidden" name="customerName" />
@@ -73,7 +95,7 @@
   const GAS_ENDPOINT_URL =
     "https://script.google.com/macros/s/AKfycbzr-aA_mnP_sHV4ablOWEiCAg5KXpKdWt3kFcXzYm9k6pM8t0-tLARcI5o-qEfYwb4y/exec";
 
-  const USE_LIFF = false;
+  const USE_LIFF = true;
 
   function setMsg(text, cls) {
     const el = document.getElementById("msg");
@@ -81,20 +103,39 @@
     el.textContent = text;
   }
 
+  /* ★ 通常クエリ & liff.state 両対応 */
   function getQueryParam(name) {
     const url = new URL(window.location.href);
-    return url.searchParams.get(name);
+
+    // 通常 ?score=7
+    const direct = url.searchParams.get(name);
+    if (direct !== null) return direct;
+
+    // liff.state 対応
+    const state = url.searchParams.get("liff.state");
+    if (state) {
+      try {
+        const decoded = decodeURIComponent(state);
+        const qs = decoded.startsWith("?") ? decoded.slice(1) : decoded;
+        const p2 = new URLSearchParams(qs);
+        const v2 = p2.get(name);
+        if (v2 !== null) return v2;
+      } catch (_) {}
+    }
+    return null;
   }
 
   function parseScore(raw) {
-    if (raw === null || raw === undefined || raw === "") return null;
+    if (raw === null || raw === "") return null;
     const n = Number(raw);
     if (!Number.isInteger(n)) return null;
     if (n < 0 || n > 10) return null;
     return n;
   }
 
-  function nowISO() { return new Date().toISOString(); }
+  function nowISO() {
+    return new Date().toISOString();
+  }
 
   function setScoreUI(score) {
     const scoreText = document.getElementById("scoreText");
@@ -102,112 +143,80 @@
     if (score === null) {
       scoreText.textContent = "-";
       scoreLabel.textContent = "スコア不明";
-      return;
+    } else {
+      scoreText.textContent = String(score);
+      scoreLabel.textContent = `スコア${score}の理由（任意）`;
     }
-    scoreText.textContent = String(score);
-    scoreLabel.textContent = `スコア${score}の理由（任意）`;
   }
 
   function postByHiddenIframe(payload) {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const form = document.getElementById("hiddenPostForm");
       const iframe = document.getElementById("hiddenPostFrame");
 
-      // 送信先
       form.action = GAS_ENDPOINT_URL;
 
-      // 値セット
-      form.userId.value = payload.userId ?? "";
-      form.customerName.value = payload.customerName ?? "";
-      form.classId.value = payload.classId ?? "";
-      form.score.value = String(payload.score ?? "");
-      form.comment.value = payload.comment ?? "";
-      form.source.value = payload.source ?? "WEB_TEST";
-      form.timestamp.value = payload.timestamp ?? "";
+      form.userId.value = payload.userId;
+      form.customerName.value = payload.customerName;
+      form.classId.value = payload.classId;
+      form.score.value = payload.score;
+      form.comment.value = payload.comment;
+      form.source.value = payload.source;
+      form.timestamp.value = payload.timestamp;
 
-      let done = false;
-      const timeoutId = setTimeout(() => {
-        if (done) return;
-        done = true;
-        iframe.removeEventListener("load", onLoad);
-        // 応答読めないケースでも「送信自体は通った可能性」を残す
-        resolve({ ok: true, raw: "" });
-      }, 8000);
-
-      const onLoad = () => {
-        if (done) return;
-        done = true;
-        clearTimeout(timeoutId);
-        iframe.removeEventListener("load", onLoad);
-
-        try {
-          const doc = iframe.contentDocument || iframe.contentWindow.document;
-          const text = (doc.body && doc.body.innerText) ? doc.body.innerText.trim() : "";
-          let json = null;
-          try { json = JSON.parse(text); } catch (_) {}
-          if (json && json.ok === true) resolve({ ok: true, raw: text });
-          else resolve({ ok: false, raw: text });
-        } catch (e) {
-          // 参照できなくても送信は成功している場合がある
-          resolve({ ok: true, raw: "" });
-        }
-      };
-
-      iframe.addEventListener("load", onLoad);
-
-      try {
-        form.submit(); // ★ここで本体タブは絶対遷移しない（targetが合っていれば）
-      } catch (e) {
-        clearTimeout(timeoutId);
-        iframe.removeEventListener("load", onLoad);
-        reject(e);
-      }
+      iframe.onload = () => resolve(true);
+      form.submit();
     });
   }
 
-  (function init() {
+  async function init() {
+    // LIFF初期化（LINE内なら必須）
+    if (USE_LIFF && window.liff) {
+      try {
+        await liff.init({ liffId: "2008913027-v02rfm0M" });
+      } catch (e) {
+        console.warn("LIFF init failed:", e);
+      }
+    }
+
     const score = parseScore(getQueryParam("score"));
+    const classId = getQueryParam("class_id") || "test_class_001";
     setScoreUI(score);
 
     const sendBtn = document.getElementById("sendBtn");
+
     sendBtn.addEventListener("click", async () => {
       if (score === null) {
-        setMsg("score が入力されていません。URLに ?score=0..10 を付けて開いてください。", "ng");
+        setMsg("score が取得できませんでした。", "ng");
         return;
       }
 
       sendBtn.disabled = true;
-      setMsg("送信中…", "");
+      setMsg("送信中…");
 
       const payload = {
         timestamp: nowISO(),
         userId: "TEST_USER",
         customerName: "テスト太郎",
-        classId: "test_class_001",
+        classId,
         score,
-        comment: (document.getElementById("comment").value || "").trim(),
-        source: USE_LIFF ? "LIFF" : "WEB_TEST"
+        comment: document.getElementById("comment").value.trim(),
+        source: USE_LIFF ? "LIFF" : "WEB"
       };
 
-      try {
-        const result = await postByHiddenIframe(payload);
-        if (result.ok) {
-          setMsg("ご協力ありがとうございました！", "ok");
-        } else {
-          setMsg("送信に失敗しました。\n応答: " + (result.raw || "(no body)"), "ng");
-        }
-      } catch (e) {
-        setMsg("送信に失敗しました。\n" + String(e), "ng");
-      } finally {
-        sendBtn.disabled = false;
-      }
+      await postByHiddenIframe(payload);
+      setMsg("ご協力ありがとうございました！", "ok");
+      sendBtn.disabled = false;
     });
 
-    document.getElementById("resetBtn").addEventListener("click", () => {
+    document.getElementById("resetBtn").onclick = () => {
       document.getElementById("comment").value = "";
-      setMsg("", "");
-    });
-  })();
+      setMsg("");
+    };
+  }
+
+  init();
 </script>
 </body>
 </html>
+
