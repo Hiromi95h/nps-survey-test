@@ -203,7 +203,7 @@
       const payload = {
         timestamp: nowISO(),
         userId: lineUserId || " ", 
-        customerName: "テスト太郎",
+        customerName: "　",
         classId,
         score,
         comment: document.getElementById("comment").value.trim(),
@@ -211,7 +211,7 @@
       };
 
       await postByHiddenIframe(payload);
-      setMsg("ご協力ありがとうございました！", "ok");
+      setMsg("送信しました。ご協力ありがとうございました！", "ok");
       sendBtn.disabled = false;
     });
 
