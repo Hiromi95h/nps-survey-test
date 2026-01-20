@@ -200,11 +200,34 @@
 
     // 完了画面に差し替え
     card.innerHTML = `
-      <h1>送信完了</h1>
-      <div class="sub" style="margin-top:10px;">
-        アンケートのご回答ありがとうございました。<br>
-        ご協力に感謝いたします。
+    <div class="card" style="padding-top:40px; padding-bottom:40px;">
+
+      <!-- 1行目：空白（余白） -->
+      <div style="height:30px;"></div>
+
+      <!-- 2行目：送信完了（少し大きめ・左ぞろえ） -->
+      <div style="
+        font-size:24px;
+        font-weight:800;
+        margin-bottom:20px;
+        color:#111;
+      ">
+        送信完了
       </div>
+
+      <!-- メッセージ本文（左ぞろえ） -->
+      <div style="
+        font-size:15px;
+        line-height:1.8;
+        color:#444;
+      ">
+        アンケートのご回答ありがとうございました。<br>
+        いただいたご意見はサービス内容向上に活用させていただきます。
+      </div>
+
+      <div style="height:30px;"></div>
+
+    </div>
     `;
 
     // 念のため hidden 要素を戻す（保険）
